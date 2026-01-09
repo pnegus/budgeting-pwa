@@ -478,7 +478,7 @@ body {
 }
 
 .wheel-column {
-  width: 50px;
+  flex: 1;
   height: 150px;
   overflow-y: scroll;
   scroll-snap-type: y mandatory;
