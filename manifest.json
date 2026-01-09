@@ -1,19 +1,19 @@
 {
-  "name": "Budget",
-  "short_name": "Budget",
+  "name": "Budgeting App",
+  "short_name": "BudgetApp",
   "description": "An offline-first personal budgeting app.",
-  "start_url": "/index.html",
+  "start_url": "/budgeting-pwa/index.html",
   "display": "standalone",
   "background_color": "#1a1a2e",
   "theme_color": "#16213e",
   "icons": [
     {
-      "src": "/icons/icon-192.png",
+      "src": "/budgeting-pwa/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "/budgeting-pwa/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
