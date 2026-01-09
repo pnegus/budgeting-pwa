@@ -190,7 +190,7 @@ function renderTransactionList() {
       <div class="tx-main-row">
         <span class="tx-expand-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M7 10l5 5 5-5z"/>
+            <path d="M10 7l5 5-5 5z"/>
           </svg>
         </span>
         <div class="tx-info">
