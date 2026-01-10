@@ -47,24 +47,25 @@ function exportToCSV(transactions, filename) {
 /**
  * Async wrapper for export job. Gets data and exports.
  * @param {'current' | 'previous' | 'all'} range
+ * @param {number} budgetId
  */
-async function runExportJob(range) {
+async function runExportJob(range, budgetId) {
     let transactions = [];
     const now = new Date();
     let filename = 'budget_export.csv';
 
     try {
         if (range === 'current') {
-            transactions = await getTransactionsByMonth(now.getFullYear(), now.getMonth());
+            transactions = await getTransactionsByMonth(now.getFullYear(), now.getMonth(), budgetId);
             const monthName = now.toLocaleString('default', { month: 'long' });
             filename = `budget_${monthName}_${now.getFullYear()}.csv`;
         } else if (range === 'previous') {
             const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-            transactions = await getTransactionsByMonth(prevMonth.getFullYear(), prevMonth.getMonth());
+            transactions = await getTransactionsByMonth(prevMonth.getFullYear(), prevMonth.getMonth(), budgetId);
             const monthName = prevMonth.toLocaleString('default', { month: 'long' });
             filename = `budget_${monthName}_${prevMonth.getFullYear()}.csv`;
         } else {
-            transactions = await getAllTransactions();
+            transactions = await getAllTransactions(budgetId);
             filename = `budget_all_data_${now.getFullYear()}.csv`;
         }
 
@@ -74,3 +75,4 @@ async function runExportJob(range) {
         alert('Failed to export data. Please try again.');
     }
 }
+
