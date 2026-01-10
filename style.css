@@ -99,6 +99,39 @@ body {
   font-size: 0.9rem;
 }
 
+/* Budget Selector */
+.budget-selector-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.budget-select {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 1rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-width: 150px;
+  text-align: center;
+  font-family: var(--font-sans);
+}
+
+.budget-select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.budget-select option {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
 /* Budget Wheel Section */
 .budget-wheel-section {
   position: relative;

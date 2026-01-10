@@ -51,13 +51,20 @@ const deleteTxModal = document.getElementById('delete-tx-modal');
 const cancelDeleteTxBtn = document.getElementById('cancel-delete-tx-btn');
 const confirmDeleteTxBtn = document.getElementById('confirm-delete-tx-btn');
 
+// Budget selector elements
+const budgetSelect = document.getElementById('budget-select');
+const editBudgetBtn = document.getElementById('edit-budget-btn');
+
 // State
 let currentAmount = 0;
 let selectedCategory = null;
-let monthlyTarget = 1000;
 let currentTransactions = [];
 let useKeyboard = false;
 let pendingDeleteTxId = null;
+
+// Multi-budget state
+let currentBudget = null; // { id, name, target, created }
+let allBudgets = [];
 
 // Wheel picker digit values
 const wheelDigits = {
@@ -92,15 +99,34 @@ function sanitizeText(text) {
 async function initApp() {
     await initDB();
 
-    // Load settings
-    const savedTarget = await getSetting('monthlyTarget');
-    if (savedTarget !== null) {
-        monthlyTarget = savedTarget;
-    } else {
-        // First run: show settings modal
-        settingsModal.showModal();
+    // Load budgets
+    allBudgets = await getAllBudgets();
+
+    // Get current budget ID from settings
+    let currentBudgetId = await getSetting('currentBudgetId');
+
+    // Find current budget or default to first one
+    if (currentBudgetId) {
+        currentBudget = await getBudget(currentBudgetId);
     }
-    targetInput.value = monthlyTarget;
+    if (!currentBudget && allBudgets.length > 0) {
+        currentBudget = allBudgets[0];
+        await setSetting('currentBudgetId', currentBudget.id);
+    }
+
+    // If still no budget, prompt user (shouldn't happen after migration)
+    if (!currentBudget) {
+        const newId = await createBudget('Personal Budget', 1000);
+        currentBudget = await getBudget(newId);
+        allBudgets = [currentBudget];
+        await setSetting('currentBudgetId', currentBudget.id);
+    }
+
+    // Populate budget selector
+    renderBudgetSelector();
+
+    // Set target input to current budget's target
+    targetInput.value = currentBudget.target;
 
     // Set month label
     updateMonthLabel();
@@ -113,6 +139,39 @@ async function initApp() {
 
     // Register service worker
     registerServiceWorker();
+}
+
+/**
+ * Render the budget selector dropdown
+ */
+function renderBudgetSelector() {
+    budgetSelect.innerHTML = '';
+
+    allBudgets.forEach((budget) => {
+        const option = document.createElement('option');
+        option.value = budget.id;
+        option.textContent = budget.name;
+        if (currentBudget && budget.id === currentBudget.id) {
+            option.selected = true;
+        }
+        budgetSelect.appendChild(option);
+    });
+
+    // Add "New Budget" option
+    const newOption = document.createElement('option');
+    newOption.value = '__new__';
+    newOption.textContent = '+ New Budget';
+    budgetSelect.appendChild(newOption);
+}
+
+/**
+ * Switch to a different budget
+ */
+async function switchBudget(budgetId) {
+    currentBudget = await getBudget(budgetId);
+    await setSetting('currentBudgetId', budgetId);
+    targetInput.value = currentBudget.target;
+    await loadCurrentMonthTransactions();
 }
 
 /**
@@ -140,7 +199,7 @@ function updateMonthLabel() {
  */
 async function loadCurrentMonthTransactions() {
     const now = new Date();
-    currentTransactions = await getTransactionsByMonth(now.getFullYear(), now.getMonth());
+    currentTransactions = await getTransactionsByMonth(now.getFullYear(), now.getMonth(), currentBudget.id);
     renderTransactionList();
     renderBudgetWheel();
 }
@@ -263,6 +322,7 @@ function renderTransactionList() {
  * Render the budget wheel visualization
  */
 function renderBudgetWheel() {
+    const monthlyTarget = currentBudget.target;
     const totalSpent = currentTransactions.reduce((sum, tx) => sum + tx.amount, 0);
     const percentage = Math.min((totalSpent / monthlyTarget) * 100, 100);
 
@@ -455,12 +515,13 @@ saveBtn.addEventListener('click', async () => {
         return;
     }
 
-    // Save transaction
+    // Save transaction with budgetId
     const sanitizedNote = sanitizeText(noteInput.value);
     await addTransaction({
         amount: currentAmount,
         category: selectedCategory,
-        note: sanitizedNote
+        note: sanitizedNote,
+        budgetId: currentBudget.id
     });
 
     // Reload and go back
@@ -497,36 +558,70 @@ categoryBtns.forEach((btn) => {
     });
 });
 
-// Settings modal
+// Budget selector event
+budgetSelect.addEventListener('change', async () => {
+    const selectedValue = budgetSelect.value;
+
+    if (selectedValue === '__new__') {
+        // Create new budget
+        const budgetName = prompt('Enter name for new budget:', 'New Budget');
+        if (budgetName && budgetName.trim()) {
+            const sanitizedName = sanitizeText(budgetName);
+            const newId = await createBudget(sanitizedName, 1000);
+            allBudgets = await getAllBudgets();
+            await switchBudget(newId);
+            renderBudgetSelector();
+        } else {
+            // User cancelled, revert selection
+            budgetSelect.value = currentBudget.id;
+        }
+    } else {
+        await switchBudget(parseInt(selectedValue, 10));
+    }
+});
+
+// Edit budget name button
+editBudgetBtn.addEventListener('click', async () => {
+    const newName = prompt('Rename budget:', currentBudget.name);
+    if (newName && newName.trim() && newName !== currentBudget.name) {
+        const sanitizedName = sanitizeText(newName);
+        await updateBudget(currentBudget.id, { name: sanitizedName });
+        currentBudget.name = sanitizedName;
+        allBudgets = await getAllBudgets();
+        renderBudgetSelector();
+    }
+});
+
+// Settings modal (now updates current budget's target)
 settingsModal.addEventListener('close', async () => {
     if (settingsModal.returnValue === 'save') {
         const newTarget = parseFloat(targetInput.value) || 1000;
-        monthlyTarget = newTarget;
-        await setSetting('monthlyTarget', monthlyTarget);
+        await updateBudget(currentBudget.id, { target: newTarget });
+        currentBudget.target = newTarget;
         renderBudgetWheel();
     }
 });
 
 cancelSettingsBtn.addEventListener('click', () => {
-    targetInput.value = monthlyTarget;
+    targetInput.value = currentBudget.target;
     settingsModal.close();
 });
 
 // Long press on wheel center to edit target
 document.querySelector('.wheel-center').addEventListener('click', () => {
-    targetInput.value = monthlyTarget;
+    targetInput.value = currentBudget.target;
     settingsModal.showModal();
 });
 
 // Edit budget target button
 editTargetBtn.addEventListener('click', () => {
-    targetInput.value = monthlyTarget;
+    targetInput.value = currentBudget.target;
     settingsModal.showModal();
 });
 
 // Export modal
 exportBtn.addEventListener('click', async () => {
-    const bounds = await getDataDateBounds();
+    const bounds = await getDataDateBounds(currentBudget.id);
     if (bounds.min && bounds.max) {
         exportStartDate.min = bounds.min.toISOString().split('T')[0];
         exportStartDate.max = bounds.max.toISOString().split('T')[0];
@@ -557,22 +652,22 @@ confirmExportBtn.addEventListener('click', async (e) => {
     exportModal.close();
 
     if (exportRange.value === 'current') {
-        runExportJob('current');
+        runExportJob('current', currentBudget.id);
     } else {
         // Custom date range
         const start = new Date(exportStartDate.value);
         start.setHours(0, 0, 0, 0);
         const end = new Date(exportEndDate.value);
         end.setHours(23, 59, 59, 999);
-        const transactions = await getTransactionsByDateRange(start, end);
-        const filename = `budget_${exportStartDate.value}_to_${exportEndDate.value}.csv`;
+        const transactions = await getTransactionsByDateRange(start, end, currentBudget.id);
+        const filename = `budget_${currentBudget.name}_${exportStartDate.value}_to_${exportEndDate.value}.csv`;
         exportToCSV(transactions, filename);
     }
 });
 
 // Clear data modal
 clearBtn.addEventListener('click', async () => {
-    const bounds = await getDataDateBounds();
+    const bounds = await getDataDateBounds(currentBudget.id);
     if (bounds.min && bounds.max) {
         clearStartDate.min = bounds.min.toISOString().split('T')[0];
         clearStartDate.max = bounds.max.toISOString().split('T')[0];
@@ -614,7 +709,7 @@ confirmClearBtn.addEventListener('click', async (e) => {
         end.setHours(23, 59, 59, 999);
     }
 
-    const count = await deleteTransactionsByDateRange(start, end);
+    const count = await deleteTransactionsByDateRange(start, end, currentBudget.id);
     alert(`Deleted ${count} transaction(s).`);
     await loadCurrentMonthTransactions();
 });
@@ -638,3 +733,4 @@ confirmDeleteTxBtn.addEventListener('click', async (e) => {
 
 // Initialize app
 initApp();
+
