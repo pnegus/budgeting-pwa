@@ -225,6 +225,39 @@ async function getAllBudgets() {
 }
 
 /**
+ * Delete a budget and all its transactions.
+ * @param {number} id
+ * @returns {Promise<void>}
+ */
+async function deleteBudget(id) {
+    const db = await initDB();
+
+    // First delete all transactions in this budget
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(['budgets', 'transactions'], 'readwrite');
+        const budgetStore = tx.objectStore('budgets');
+        const txStore = tx.objectStore('transactions');
+        const budgetIdIndex = txStore.index('budgetId');
+
+        // Delete all transactions with this budgetId
+        const txRequest = budgetIdIndex.openCursor(IDBKeyRange.only(id));
+        txRequest.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (cursor) {
+                cursor.delete();
+                cursor.continue();
+            }
+        };
+
+        // Delete the budget itself
+        budgetStore.delete(id);
+
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+/**
  * Update a budget.
  * @param {number} id
  * @param {{ name?: string, target?: number }} updates

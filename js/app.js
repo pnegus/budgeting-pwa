@@ -54,6 +54,10 @@ const confirmDeleteTxBtn = document.getElementById('confirm-delete-tx-btn');
 // Budget selector elements
 const budgetSelect = document.getElementById('budget-select');
 const editBudgetBtn = document.getElementById('edit-budget-btn');
+const deleteBudgetBtn = document.getElementById('delete-budget-btn');
+const deleteBudgetModal = document.getElementById('delete-budget-modal');
+const cancelDeleteBudgetBtn = document.getElementById('cancel-delete-budget-btn');
+const confirmDeleteBudgetBtn = document.getElementById('confirm-delete-budget-btn');
 
 // State
 let currentAmount = 0;
@@ -590,6 +594,41 @@ editBudgetBtn.addEventListener('click', async () => {
         allBudgets = await getAllBudgets();
         renderBudgetSelector();
     }
+});
+
+// Delete budget button - show confirmation modal
+deleteBudgetBtn.addEventListener('click', () => {
+    if (allBudgets.length <= 1) {
+        alert('Cannot delete the last budget. You must have at least one budget.');
+        return;
+    }
+    deleteBudgetModal.showModal();
+});
+
+// Cancel delete budget
+cancelDeleteBudgetBtn.addEventListener('click', () => {
+    deleteBudgetModal.close();
+});
+
+// Confirm delete budget
+confirmDeleteBudgetBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    deleteBudgetModal.close();
+
+    const budgetIdToDelete = currentBudget.id;
+
+    // Delete the budget
+    await deleteBudget(budgetIdToDelete);
+
+    // Refresh budgets list
+    allBudgets = await getAllBudgets();
+
+    // Switch to first available budget
+    if (allBudgets.length > 0) {
+        await switchBudget(allBudgets[0].id);
+    }
+
+    renderBudgetSelector();
 });
 
 // Settings modal (now updates current budget's target)
